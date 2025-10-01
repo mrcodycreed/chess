@@ -15,22 +15,14 @@ public class Knight : ChessPiece
     /// <returns>True if the piece can move to the specified position, false otherwise.</returns>
     public override bool CanMoveTo(int x, int y)
     {
-        ChessPiece targetPiece = ChessBoard.Instance.GetPiece(x, y);
-        if (targetPiece != null && targetPiece.Color == this.Color) return false;
- 
-        // Calculate the movement distance in x and y direction
+        if (BoardState == null || !BoardState.IsWithinBounds(x, y)) return false;
+
+        PieceData? targetPiece = BoardState.GetPiece(x, y);
+        if (targetPiece.HasValue && targetPiece.Value.Color == PieceColour) return false;
+
         int deltaX = Mathf.Abs(x - Position.x);
         int deltaY = Mathf.Abs(y - Position.y);
 
-        // Check if the movement is valid (L-shape with length 2 and 1)
-        if ((deltaX == 1 && deltaY == 2) || (deltaX == 2 && deltaY == 1))
-        {
-            return true;
-        }
-        else
-        {
-            // Invalid move
-            return false;
-        }
+        return (deltaX == 1 && deltaY == 2) || (deltaX == 2 && deltaY == 1);
     }
 }

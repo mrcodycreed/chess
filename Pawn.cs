@@ -16,35 +16,41 @@ public class Pawn : ChessPiece
     /// <returns>True if the piece can move to the specified position, false otherwise.</returns>
     public override bool CanMoveTo(int x, int y)
     {
-        ChessPiece targetPiece = ChessBoard.Instance.GetPiece(x, y);
-        if (targetPiece != null && targetPiece.Color == this.Color) return false;
+        if (BoardState == null || !BoardState.IsWithinBounds(x, y)) return false;
 
-        // Calculate the movement distance in x and y direction
+        PieceData? targetPiece = BoardState.GetPiece(x, y);
+        if (targetPiece.HasValue && targetPiece.Value.Color == PieceColour) return false;
+
+        PieceData? selfData = CurrentPieceData;
+        if (!selfData.HasValue) return false;
+
         int deltaX = x - Position.x;
         int deltaY = y - Position.y;
+        int forwardDirection = PieceColour == PieceColor.White ? 1 : -1;
 
-        // Pawns can only move forward
-        int forwardDirection = (Color == Color.white) ? 1 : -1;
         if (deltaX == 0 && deltaY == forwardDirection)
         {
-            // Check if the target square is empty
-            return (ChessBoard.Instance.GetPiece(x, y) == null);
+            return !targetPiece.HasValue;
         }
-        else if (deltaX == 0 && deltaY == forwardDirection * 2 && !HasMoved)
+
+        if (deltaX == 0 && deltaY == forwardDirection * 2 && !selfData.Value.HasMoved)
         {
-            // Check if the pawn has not moved and the two squares in front are empty
-            return (ChessBoard.Instance.GetPiece(x, y) == null && ChessBoard.Instance.GetPiece(x, y - forwardDirection) == null);
+            Vector2Int intermediate = new Vector2Int(x, y - forwardDirection);
+            return !targetPiece.HasValue && !BoardState.GetPiece(intermediate).HasValue;
         }
-        else if (Mathf.Abs(deltaX) == 1 && deltaY == forwardDirection)
+
+        if (Mathf.Abs(deltaX) == 1 && deltaY == forwardDirection)
         {
-            // Check if the target square is occupied by an enemy piece
-            return (targetPiece != null && targetPiece.Color != Color);
+            if (targetPiece.HasValue && targetPiece.Value.Color != PieceColour) return true;
+
+            if (!targetPiece.HasValue && BoardState.EnPassantTarget.HasValue)
+            {
+                Vector2Int enPassant = BoardState.EnPassantTarget.Value;
+                if (enPassant.x == x && enPassant.y == y) return true;
+            }
         }
-        else
-        {
-            // Invalid move
-            return false;
-        }
+
+        return false;
     }
 }
 

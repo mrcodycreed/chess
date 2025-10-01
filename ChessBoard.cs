@@ -11,7 +11,12 @@ public class ChessBoard : MonoBehaviour
     #region SINGLETON
 
     public static ChessBoard Instance;
-    private void Awake() => Instance = this;
+    public BoardState Model { get; private set; }
+
+    private void Awake()
+    {
+        Instance = this;
+    }
 
     #endregion
 
@@ -48,52 +53,91 @@ public class ChessBoard : MonoBehaviour
     /// <summary>
     /// Spawns the pieces and puts them in their initial positions
     /// </summary>
-    private void SetUpBoard() {
-        board = new ChessPiece[8, 8];
+    private void SetUpBoard()
+    {
+        Model = BoardState.CreateInitial();
+        RebuildBoardFromModel();
+    }
 
-        // Set up white pieces
-        board[0, 0] = Instantiate(whiteRookPrefab).GetComponent<ChessPiece>();
-        board[1, 0] = Instantiate(whiteKnightPrefab).GetComponent<ChessPiece>();
-        board[2, 0] = Instantiate(whiteBishopPrefab).GetComponent<ChessPiece>();
-        board[3, 0] = Instantiate(whiteQueenPrefab).GetComponent<ChessPiece>();
-        board[4, 0] = Instantiate(whiteKingPrefab).GetComponent<ChessPiece>();
-        board[5, 0] = Instantiate(whiteBishopPrefab).GetComponent<ChessPiece>();
-        board[6, 0] = Instantiate(whiteKnightPrefab).GetComponent<ChessPiece>();
-        board[7, 0] = Instantiate(whiteRookPrefab).GetComponent<ChessPiece>();
-
-        for (int i = 0; i < 8; i++) {
-            board[i, 1] = Instantiate(whitePawnPrefab).GetComponent<ChessPiece>();
-        }
-
-        // Set up black pieces
-        board[0, 7] = Instantiate(blackRookPrefab).GetComponent<ChessPiece>();
-        board[1, 7] = Instantiate(blackKnightPrefab).GetComponent<ChessPiece>();
-        board[2, 7] = Instantiate(blackBishopPrefab).GetComponent<ChessPiece>();
-        board[3, 7] = Instantiate(blackQueenPrefab).GetComponent<ChessPiece>();
-        board[4, 7] = Instantiate(blackKingPrefab).GetComponent<ChessPiece>();
-        board[5, 7] = Instantiate(blackBishopPrefab).GetComponent<ChessPiece>();
-        board[6, 7] = Instantiate(blackKnightPrefab).GetComponent<ChessPiece>();
-        board[7, 7] = Instantiate(blackRookPrefab).GetComponent<ChessPiece>();
-
-        for (int i = 0; i < 8; i++) {
-            board[i, 6] = Instantiate(blackPawnPrefab).GetComponent<ChessPiece>();
-        }
-
-        // Set the initial position and name of each piece
-        for (int i = 0; i < 8; i++)
+    private void RebuildBoardFromModel()
+    {
+        if (board != null)
         {
-            for (int j = 0; j < 8; j++)
+            for (int x = 0; x < 8; x++)
             {
-                if (board[i, j] != null)
+                for (int y = 0; y < 8; y++)
                 {
-                    board[i, j].Position = new Vector2Int(i, j);
-                    board[i, j].Color = (j < 2) ? Color.white : Color.black;
-                    string colourName = (j < 2) ? "White" : "Black";
-                    PositionOnBoard(board[i, j]);
-                    board[i, j].name = $"{board[i, j].GetType().Name} {colourName} {i},{j}"; // Set the name
+                    if (board[x, y] != null)
+                    {
+                        Destroy(board[x, y].gameObject);
+                        board[x, y] = null;
+                    }
                 }
             }
         }
+
+        board = new ChessPiece[8, 8];
+
+        for (int x = 0; x < 8; x++)
+        {
+            for (int y = 0; y < 8; y++)
+            {
+                PieceData? pieceData = Model.GetPiece(x, y);
+                if (pieceData.HasValue)
+                {
+                    ChessPiece piece = SpawnPiece(pieceData.Value, new Vector2Int(x, y));
+                    board[x, y] = piece;
+                }
+            }
+        }
+    }
+
+    private ChessPiece SpawnPiece(PieceData data, Vector2Int boardPosition)
+    {
+        GameObject prefab = GetPrefabFor(data);
+        if (prefab == null)
+            throw new InvalidOperationException($"No prefab configured for {data.Color} {data.Type}");
+
+        ChessPiece piece = Instantiate(prefab).GetComponent<ChessPiece>();
+        piece.Position = boardPosition;
+        piece.Color = data.Color == PieceColor.White ? Color.white : Color.black;
+        piece.HasMoved = data.HasMoved;
+        PositionOnBoard(piece);
+
+        string colourName = data.Color == PieceColor.White ? "White" : "Black";
+        piece.name = $"{piece.GetType().Name} {colourName} {boardPosition.x},{boardPosition.y}";
+
+        return piece;
+    }
+
+    private GameObject GetPrefabFor(PieceData data)
+    {
+        return data.Type switch
+        {
+            PieceType.Pawn => data.Color == PieceColor.White ? whitePawnPrefab : blackPawnPrefab,
+            PieceType.Rook => data.Color == PieceColor.White ? whiteRookPrefab : blackRookPrefab,
+            PieceType.Knight => data.Color == PieceColor.White ? whiteKnightPrefab : blackKnightPrefab,
+            PieceType.Bishop => data.Color == PieceColor.White ? whiteBishopPrefab : blackBishopPrefab,
+            PieceType.Queen => data.Color == PieceColor.White ? whiteQueenPrefab : blackQueenPrefab,
+            PieceType.King => data.Color == PieceColor.White ? whiteKingPrefab : blackKingPrefab,
+            _ => null,
+        };
+    }
+
+    public void LoadFromFen(string fen)
+    {
+        if (Model == null)
+        {
+            Model = new BoardState();
+        }
+
+        Model.LoadFromFen(fen);
+        RebuildBoardFromModel();
+    }
+
+    public string ExportFen()
+    {
+        return Model != null ? Model.ToFen() : string.Empty;
     }
 
     /// <summary>
@@ -134,24 +178,80 @@ public class ChessBoard : MonoBehaviour
     /// <returns>True if the move was successful, false otherwise.</returns>
     public bool MoveTo(ChessPiece piece, int x, int y, bool positionOnBoard)
     {
-        if (PieceMoving ||  GameFinished) return false;
+        if (PieceMoving || GameFinished) return false;
+
+        pieceToTake = null;
+
+        Vector2Int from = piece.Position;
+        Vector2Int destination = new Vector2Int(x, y);
 
         bool checkBeforeMove = CheckForCheck();
 
-        // Store the current position of the piece
-        Vector2Int pieceStartPos = piece.Position;
+        BoardState previousState = Model.Clone();
+        MoveRecord moveRecord;
 
-        board[piece.Position.x, piece.Position.y] = null;
-
-        if(board[x,y] != null)
+        try
         {
-            pieceToTake = board[x, y];
-            Invoke("TakePiece", moveTime - (moveTime / 4));
+            moveRecord = Model.ApplyMove(from, destination);
+        }
+        catch (InvalidOperationException)
+        {
+            Model = previousState;
+            return false;
+        }
+
+        ChessPiece capturedPieceView = null;
+        Vector2Int? capturedPosition = moveRecord.CapturedPosition;
+        if (capturedPosition.HasValue)
+        {
+            capturedPieceView = board[capturedPosition.Value.x, capturedPosition.Value.y];
+        }
+        else
+        {
+            capturedPieceView = board[x, y];
+            if (capturedPieceView != null)
+            {
+                capturedPosition = new Vector2Int(x, y);
+            }
+        }
+
+        ChessPiece rookView = null;
+        bool rookHadMoved = false;
+        Vector2Int? rookFrom = moveRecord.RookFrom;
+        Vector2Int? rookTo = moveRecord.RookTo;
+        if (rookFrom.HasValue && rookTo.HasValue)
+        {
+            rookView = board[rookFrom.Value.x, rookFrom.Value.y];
+            if (rookView != null)
+            {
+                rookHadMoved = rookView.HasMoved;
+            }
+        }
+
+        bool pieceHadMoved = piece.HasMoved;
+
+        board[from.x, from.y] = null;
+
+        if (capturedPosition.HasValue)
+        {
+            board[capturedPosition.Value.x, capturedPosition.Value.y] = null;
         }
 
         board[x, y] = piece;
-        piece.Position = new Vector2Int(x, y);
-        piece.HasMoved = true;
+        piece.Position = destination;
+
+        PieceData? updatedPieceData = Model.GetPiece(destination);
+        piece.HasMoved = updatedPieceData.HasValue ? updatedPieceData.Value.HasMoved : true;
+
+        if (rookView != null && rookFrom.HasValue && rookTo.HasValue)
+        {
+            board[rookFrom.Value.x, rookFrom.Value.y] = null;
+            board[rookTo.Value.x, rookTo.Value.y] = rookView;
+            rookView.Position = rookTo.Value;
+
+            PieceData? rookData = Model.GetPiece(rookTo.Value);
+            rookView.HasMoved = rookData.HasValue ? rookData.Value.HasMoved : true;
+        }
 
         bool checkAfterMove = CheckForCheck();
 
@@ -159,28 +259,62 @@ public class ChessBoard : MonoBehaviour
         {
             UIManager.Instance.AddMove($"That move will not stop check");
 
-            // Revert the move
-            board[x, y] = null;
-            board[pieceStartPos.x, pieceStartPos.y] = piece;
-            piece.Position = pieceStartPos;
+            board[from.x, from.y] = piece;
+            piece.Position = from;
+            piece.HasMoved = pieceHadMoved;
 
+            board[x, y] = null;
+
+            if (capturedPosition.HasValue && capturedPieceView != null)
+            {
+                board[capturedPosition.Value.x, capturedPosition.Value.y] = capturedPieceView;
+            }
+
+            if (rookView != null && rookFrom.HasValue && rookTo.HasValue)
+            {
+                board[rookFrom.Value.x, rookFrom.Value.y] = rookView;
+                board[rookTo.Value.x, rookTo.Value.y] = null;
+                rookView.Position = rookFrom.Value;
+                rookView.HasMoved = rookHadMoved;
+            }
+
+            Model = previousState;
+            pieceToTake = null;
             return false;
+        }
+
+        if (capturedPieceView != null)
+        {
+            pieceToTake = capturedPieceView;
+            Invoke("TakePiece", moveTime - (moveTime / 4));
         }
 
         if (positionOnBoard)
         {
             StartCoroutine(MovePieceCoroutine(piece, piece.Position, moveTime));
-            if(animateY) StartCoroutine(MoveY(piece, moveTime, 0.5f));
+            if (animateY) StartCoroutine(MoveY(piece, moveTime, 0.5f));
+
+            if (rookView != null)
+            {
+                StartCoroutine(MovePieceCoroutine(rookView, rookView.Position, moveTime));
+                if (animateY) StartCoroutine(MoveY(rookView, moveTime, 0.5f));
+            }
+        }
+        else
+        {
+            PositionOnBoard(piece);
+            if (rookView != null)
+            {
+                PositionOnBoard(rookView);
+            }
         }
 
         print($"{piece.Name} to ({x},{y})");
         UIManager.Instance.AddMove($"{piece.Name} to ({x},{y})");
 
-        // Check for win condition
         bool win = CheckForWin();
         if (win)
         {
-            // Handle win state
             HandleWinState(piece.Color);
             return true;
         }

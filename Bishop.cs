@@ -16,38 +16,31 @@ public class Bishop : ChessPiece
     /// <returns>True if the piece can move to the specified position, false otherwise.</returns>
     public override bool CanMoveTo(int x, int y)
     {
-        ChessPiece targetPiece = ChessBoard.Instance.GetPiece(x, y);
-        if (targetPiece != null && targetPiece.Color == this.Color) return false;
+        if (BoardState == null || !BoardState.IsWithinBounds(x, y)) return false;
 
-        // Calculate the movement distance in x and y direction
         int deltaX = x - Position.x;
         int deltaY = y - Position.y;
 
-        // Check if the movement is diagonal
-        if (Mathf.Abs(deltaX) == Mathf.Abs(deltaY))
-        {
-            // Check if the diagonal path is clear
-            int xDir = (deltaX > 0) ? 1 : -1;
-            int yDir = (deltaY > 0) ? 1 : -1;
-            int xTest = Position.x + xDir;
-            int yTest = Position.y + yDir;
-            while (xTest != x && yTest != y)
-            {
-                if (ChessBoard.Instance.GetPiece(xTest, yTest) != null)
-                {
-                    return false;
-                }
-                xTest += xDir;
-                yTest += yDir;
-            }
+        if (deltaX == 0 && deltaY == 0) return false;
+        if (Mathf.Abs(deltaX) != Mathf.Abs(deltaY)) return false;
 
-            return true;
-        }
-        else
+        int stepX = deltaX > 0 ? 1 : -1;
+        int stepY = deltaY > 0 ? 1 : -1;
+
+        int xTest = Position.x + stepX;
+        int yTest = Position.y + stepY;
+        while (xTest != x && yTest != y)
         {
-            // Invalid move
-            return false;
+            if (BoardState.GetPiece(xTest, yTest).HasValue)
+            {
+                return false;
+            }
+            xTest += stepX;
+            yTest += stepY;
         }
+
+        PieceData? targetPiece = BoardState.GetPiece(x, y);
+        return !targetPiece.HasValue || targetPiece.Value.Color != PieceColour;
     }
    
 }
