@@ -10,6 +10,10 @@ public abstract class ChessPiece : MonoBehaviour
     public Color Color { get; set; }
     public bool HasMoved = false;
 
+    protected BoardState BoardState => ChessBoard.Instance != null ? ChessBoard.Instance.Model : null;
+    protected PieceColor PieceColour => Color == Color.white ? PieceColor.White : PieceColor.Black;
+    protected PieceData? CurrentPieceData => BoardState?.GetPiece(Position);
+
     /// <summary>
     /// Determines if the piece can move to the specified position on the chess board.
     /// </summary>

@@ -15,50 +15,47 @@ public class Queen : ChessPiece
     /// <returns>True if the piece can move to the specified position, false otherwise.</returns>
     public override bool CanMoveTo(int x, int y)
     {
-        // Check if the move is diagonal
-        if (Mathf.Abs(x - Position.x) == Mathf.Abs(y - Position.y))
-        {
-            // Check if the path is clear
-            int dx = (x > Position.x) ? 1 : -1;
-            int dy = (y > Position.y) ? 1 : -1;
-            int steps = Mathf.Abs(x - Position.x);
-            for (int i = 1; i < steps; i++)
-            {
-                int checkX = Position.x + i * dx;
-                int checkY = Position.y + i * dy;
-                if (ChessBoard.Instance.GetPiece(checkX, checkY) != null)
-                {
-                    return false;
-                }
-            }
+        if (BoardState == null || !BoardState.IsWithinBounds(x, y)) return false;
 
-            // Check if the destination is empty or has an opposing piece
-            ChessPiece targetPiece = ChessBoard.Instance.GetPiece(x, y);
-            return targetPiece == null || targetPiece.Color != Color;
+        int deltaX = x - Position.x;
+        int deltaY = y - Position.y;
+
+        if (deltaX == 0 && deltaY == 0) return false;
+
+        bool isDiagonal = Mathf.Abs(deltaX) == Mathf.Abs(deltaY);
+        bool isStraight = deltaX == 0 || deltaY == 0;
+
+        if (!isDiagonal && !isStraight) return false;
+
+        int stepX = 0;
+        int stepY = 0;
+        int steps = 0;
+
+        if (isDiagonal)
+        {
+            stepX = deltaX > 0 ? 1 : -1;
+            stepY = deltaY > 0 ? 1 : -1;
+            steps = Mathf.Abs(deltaX);
         }
-        // Check if the move is vertical
-        else if (x == Position.x || y == Position.y)
+        else
         {
-            // Check if the path is clear
-            int dx = (x > Position.x) ? 1 : (x < Position.x) ? -1 : 0;
-            int dy = (y > Position.y) ? 1 : (y < Position.y) ? -1 : 0;
-            int steps = Mathf.Max(Mathf.Abs(x - Position.x), Mathf.Abs(y - Position.y));
-            for (int i = 1; i < steps; i++)
-            {
-                int checkX = Position.x + i * dx;
-                int checkY = Position.y + i * dy;
-                if (ChessBoard.Instance.GetPiece(checkX, checkY) != null)
-                {
-                    return false;
-                }
-            }
-
-            // Check if the destination is empty or has an opposing piece
-            ChessPiece targetPiece = ChessBoard.Instance.GetPiece(x, y);
-            return targetPiece == null || targetPiece.Color != Color;
+            stepX = deltaX == 0 ? 0 : (deltaX > 0 ? 1 : -1);
+            stepY = deltaY == 0 ? 0 : (deltaY > 0 ? 1 : -1);
+            steps = Mathf.Max(Mathf.Abs(deltaX), Mathf.Abs(deltaY));
         }
 
-        return false;
+        for (int i = 1; i < steps; i++)
+        {
+            int checkX = Position.x + i * stepX;
+            int checkY = Position.y + i * stepY;
+            if (BoardState.GetPiece(checkX, checkY).HasValue)
+            {
+                return false;
+            }
+        }
+
+        PieceData? targetPiece = BoardState.GetPiece(x, y);
+        return !targetPiece.HasValue || targetPiece.Value.Color != PieceColour;
     }
 
 
